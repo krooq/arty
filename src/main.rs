@@ -1,15 +1,16 @@
 use clap::{App, Arg};
 use jenkins_api::JenkinsBuilder;
 use serde::Deserialize;
-
+use colored::*;
 
 #[derive(Deserialize, Debug)]
-struct Jobs {
-    jobs: Vec<Builds>
+struct Query {
+    jobs: Vec<Job>,
 }
 #[derive(Deserialize, Debug)]
-struct Builds {
-    builds: Vec<Build>
+struct Job {
+    name: String,
+    builds: Vec<Build>,
 }
 #[derive(Deserialize, Debug)]
 struct Build {
@@ -23,11 +24,10 @@ fn main() {
         .author("Gavin Rossiter <rossiter.gavin@gmail.com>")
         .about("Allows you download the artifacts from any jenkins build!")
         .arg(
-            Arg::with_name("ip")
-                .help("The IP address of your jenkins server")
+            Arg::with_name("url")
+                .help("The URL of your jenkins server")
                 .index(1),
         )
-
         // .arg(
         //     Arg::with_name("extract")
         //         .short('x')
@@ -40,27 +40,41 @@ fn main() {
         //         .index(1)
         //         .default_value("."),
         // )
-        .get_matches(); 
+        .get_matches();
 
-    let jenkins = JenkinsBuilder::new("http://localhost:5001").build().unwrap(); 
-    // match jenkins.get_view("All"){ 
-    //     Ok(home) => println!("{}", home.jobs),
-    //     Err(e)=> eprintln!("{}",e)
-    // }
-    for job in jenkins.get_view("All").unwrap().jobs {
-        let path =jenkins_api::client::Path::Job {
-            name: "apple.cmats",
+    let jenkins = JenkinsBuilder::new("http://localhost:5001")
+        .build()
+        .unwrap();
+
+    let mut view = jenkins.get_view("All").unwrap();
+
+    let pipelines: Vec<String> = view.jobs.drain(..).map(|j| j.name).collect();
+
+    use jenkins_api::client::TreeBuilder;
+
+    for pipeline in pipelines {
+        let path = jenkins_api::client::Path::Job {
+            name: pipeline.as_str(),
             configuration: None,
         };
-        use jenkins_api::client::TreeBuilder;
+        let tree = TreeBuilder::object("jobs")
+            .with_subfield("name")
+            .with_subfield(
+                TreeBuilder::object("builds")
+                    .with_subfield("url")
+                    .with_subfield("number"),
+            )
+            .build();
+        let query: Query = jenkins.get_object_as(path, tree).unwrap();
 
-        let tree = TreeBuilder::object("jobs").with_subfield(TreeBuilder::object("builds").with_subfield("url").with_subfield("number")).build();
-        let builds : Jobs = jenkins.get_object_as(path,tree).unwrap();
-        dbg!(builds);
-        // println!("{}", job.get_full_job(jenkins_client).unwrap().last_build.unwrap().display_name.unwrap());
+        for job in query.jobs {
+            println!("{}", job.name.bold().underline());
+            for build in job.builds {
+                println!("{}", build.url);
+            }
+            print!("\n");
+        }
     }
-
-
 
     // // You can check the value provided by positional arguments, or option arguments
     // if let Some(o) = matches.value_of("output") {
