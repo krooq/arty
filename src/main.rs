@@ -28,6 +28,12 @@ fn main() {
                 .help("The URL of your jenkins server")
                 .index(1),
         )
+            .arg(
+            Arg::with_name("tunnel")
+                .short("t")
+                .long("tunnel")
+                .help("URL of the tunneling server you are using to access jenkins")
+                .takes_value(true),)
         // .arg(
         //     Arg::with_name("extract")
         //         .short('x')
@@ -65,14 +71,22 @@ fn main() {
                     .with_subfield("number"),
             )
             .build();
-        let query: Query = jenkins.get_object_as(path, tree).unwrap();
-
-        for job in query.jobs {
-            println!("{}", job.name.bold().underline());
-            for build in job.builds {
-                println!("{}", build.url);
-            }
-            print!("\n");
+        let query: Result<Query,_> = jenkins.get_object_as(path, tree);
+        match query {
+            Ok(query) =>{
+                for job in query.jobs {
+                    let nb_builds = job.builds.len();
+                    println!("{}", job.name.bold().underline());
+                    for build in job.builds {
+                        println!("{:4} | {}", build.number, build.url);
+                    }
+                    if nb_builds == 0 {
+                        println!("{}", "no builds".dimmed());
+                    }
+                    print!("\n");
+                }
+            },
+            Err(e) => eprintln!("{}",e)
         }
     }
 
