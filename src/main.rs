@@ -1,7 +1,12 @@
-use clap::{App, Arg};
 use jenkins_api::JenkinsBuilder;
 use serde::Deserialize;
 use colored::*;
+use std::env;
+use std::fs;
+use std::path;
+use dotenv::dotenv;
+use regex::Regex;
+use lazy_static::lazy_static;
 
 #[derive(Deserialize, Debug)]
 struct Query {
@@ -10,6 +15,7 @@ struct Query {
 #[derive(Deserialize, Debug)]
 struct Job {
     name: String,
+    url: String,
     builds: Vec<Build>,
 }
 #[derive(Deserialize, Debug)]
@@ -18,37 +24,48 @@ struct Build {
     url: String,
 }
 
-fn main() {
-    let matches = App::new("jenky")
-        .version("0.0.1")
-        .author("Gavin Rossiter <rossiter.gavin@gmail.com>")
-        .about("Allows you download the artifacts from any jenkins build!")
-        .arg(
-            Arg::with_name("url")
-                .help("The URL of your jenkins server")
-                .index(1),
-        )
-            .arg(
-            Arg::with_name("tunnel")
-                .short("t")
-                .long("tunnel")
-                .help("URL of the tunneling server you are using to access jenkins")
-                .takes_value(true),)
-        // .arg(
-        //     Arg::with_name("extract")
-        //         .short('x')
-        //         .long("extract")
-        //         .help("Extracts the artifacts after downloading"),
-        // )
-        // .arg(
-        //     Arg::index("dir")
-        //         .help("Sets the download directory")
-        //         .index(1)
-        //         .default_value("."),
-        // )
-        .get_matches();
+#[derive(Deserialize, Debug)]
+struct Config {
+    url: String,
+}
 
-    let jenkins = JenkinsBuilder::new("http://localhost:5001")
+lazy_static!{
+    static ref URL_REGEX: Regex = Regex::new(r"(\w+://([^/]+))/.+").unwrap();
+}
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+
+// .arg(
+//     Arg::with_name("extract")
+//         .short('x')
+//         .long("extract")
+//         .help("Extracts the artifacts after downloading"),
+// )
+// .arg(
+//     Arg::index("dir")
+//         .help("Sets the download directory")
+//         .index(1)
+//         .default_value("."),
+// )
+/// Allows you browse jenkins from the command line!
+#[derive(StructOpt, Debug)]
+#[structopt(name = "jenky")]
+struct Opt {
+    /// A regex pattern to filter job URLs
+    #[structopt()]
+    pattern: Option<String>,
+}
+
+fn main() {
+    dotenv().ok();
+    let jenkins_url = env::var("JENKINS_URL").expect("JENKINS_URL envionment variable set");
+    let jenkins_url = jenkins_url.as_str();
+    
+    let opt = Opt::from_args();
+    let job_url_regex: Option<Regex> = opt.pattern.map(|p| Regex::new(p.as_str())).unwrap().ok();
+
+    let jenkins = JenkinsBuilder::new(jenkins_url.clone())
         .build()
         .unwrap();
 
@@ -65,6 +82,7 @@ fn main() {
         };
         let tree = TreeBuilder::object("jobs")
             .with_subfield("name")
+            .with_subfield("url")
             .with_subfield(
                 TreeBuilder::object("builds")
                     .with_subfield("url")
@@ -74,19 +92,31 @@ fn main() {
         let query: Result<Query,_> = jenkins.get_object_as(path, tree);
         match query {
             Ok(query) =>{
+                // let job_url_regex_ref = job_url_regex.as_ref();
                 for job in query.jobs {
                     let nb_builds = job.builds.len();
-                    println!("{}", job.name.bold().underline());
-                    for build in job.builds {
-                        println!("{:4} | {}", build.number, build.url);
+                    if nb_builds > 0 {
+                        let job_url = replace_url(job.url.as_str(), jenkins_url);
+
+                            if let Some(regex) = job_url_regex.as_ref() {
+                                if let Some(_) = regex.captures(job.url.as_str()){
+                                    println!("{}", job_url.bold().underline());
+                                    for build in job.builds {
+                                        println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
+                                    }
+                                    print!("\n");
+                                }
+                            }
+                        }
                     }
-                    if nb_builds == 0 {
-                        println!("{}", "no builds".dimmed());
-                    }
-                    print!("\n");
-                }
+                    // if nb_builds == 0 {
+                    //     println!("{}", "no builds".dimmed());
+                    // }
             },
-            Err(e) => eprintln!("{}",e)
+            Err(e) => {
+                // Ignore the errors
+                // eprintln!("{}",e)
+            }
         }
     }
 
@@ -121,4 +151,16 @@ fn main() {
     // }
 
     // Continued program logic goes here...
+}
+
+
+fn replace_url(url: &str, replacement: &str) -> String {
+    let mut url_mut = String::new();
+    url_mut.push_str(url);
+    if let Some(captures) = URL_REGEX.captures(url_mut.as_str()){
+        if let Some(m) = captures.get(1) {
+            return url_mut.replace(m.as_str(), replacement);
+        }
+    }
+    url_mut
 }
