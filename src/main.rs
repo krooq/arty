@@ -9,7 +9,7 @@ use regex::Regex;
 use lazy_static::lazy_static;
 
 #[derive(Deserialize, Debug)]
-struct Query {
+struct Pipeline {
     jobs: Vec<Job>,
 }
 #[derive(Deserialize, Debug)]
@@ -32,7 +32,7 @@ struct Config {
 lazy_static!{
     static ref URL_REGEX: Regex = Regex::new(r"(\w+://([^/]+))/.+").unwrap();
 }
-use std::path::PathBuf;
+
 use structopt::StructOpt;
 
 
@@ -55,6 +55,8 @@ struct Opt {
     /// A regex pattern to filter job URLs
     #[structopt()]
     pattern: Option<String>,
+
+    
 }
 
 fn main() {
@@ -63,7 +65,7 @@ fn main() {
     let jenkins_url = jenkins_url.as_str();
     
     let opt = Opt::from_args();
-    let job_url_regex: Option<Regex> = opt.pattern.map(|p| Regex::new(p.as_str())).unwrap().ok();
+    let job_regex: Option<Regex> = opt.pattern.map(|p| Regex::new(p.as_str()).unwrap());
 
     let jenkins = JenkinsBuilder::new(jenkins_url.clone())
         .build()
@@ -71,13 +73,13 @@ fn main() {
 
     let mut view = jenkins.get_view("All").unwrap();
 
-    let pipelines: Vec<String> = view.jobs.drain(..).map(|j| j.name).collect();
+    let pipeline_names: Vec<String> = view.jobs.drain(..).map(|j| j.name).collect();
 
     use jenkins_api::client::TreeBuilder;
 
-    for pipeline in pipelines {
+    for pipeline_name in pipeline_names {
         let path = jenkins_api::client::Path::Job {
-            name: pipeline.as_str(),
+            name: pipeline_name.as_str(),
             configuration: None,
         };
         let tree = TreeBuilder::object("jobs")
@@ -89,68 +91,28 @@ fn main() {
                     .with_subfield("number"),
             )
             .build();
-        let query: Result<Query,_> = jenkins.get_object_as(path, tree);
-        match query {
-            Ok(query) =>{
-                // let job_url_regex_ref = job_url_regex.as_ref();
-                for job in query.jobs {
-                    let nb_builds = job.builds.len();
-                    if nb_builds > 0 {
-                        let job_url = replace_url(job.url.as_str(), jenkins_url);
-
-                            if let Some(regex) = job_url_regex.as_ref() {
-                                if let Some(_) = regex.captures(job.url.as_str()){
-                                    println!("{}", job_url.bold().underline());
-                                    for build in job.builds {
-                                        println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
-                                    }
-                                    print!("\n");
-                                }
-                            }
+        if let Ok(pipeline) = jenkins.get_object_as::<_,Pipeline>(path, tree) {
+                println!("{}", pipeline_name);
+                let no_jobs = pipeline.jobs.len() <= 0;
+                if no_jobs {
+                    println!("{:4}", "none".dimmed());
+                } else {
+                    for (j, job) in pipeline.jobs.iter().enumerate() {
+                        if job_regex.as_ref().map_or(true, |r| r.captures(job.name.as_str()).is_some()) {
+                            println!("{:4} | {}", j, job.name.replace("%2F", "/"));
                         }
                     }
-                    // if nb_builds == 0 {
-                    //     println!("{}", "no builds".dimmed());
-                    // }
-            },
-            Err(e) => {
-                // Ignore the errors
-                // eprintln!("{}",e)
-            }
-        }
+                }
+                println!();
+            };
     }
+                             // let job_url = replace_url(job.url.as_str(), jenkins_url);
+                                // println!("{:4} | {}", "", job_url.replace("%2F", "/"));
+                                    // println!("{:4} | {}", "", job.builds.iter().map(|b| b.number.to_string()).collect::<Vec<String>>().join(", "));
 
-    // // You can check the value provided by positional arguments, or option arguments
-    // if let Some(o) = matches.value_of("output") {
-    //     println!("Value for output: {}", o);
-    // }
-
-    // if let Some(c) = matches.value_of("config") {
-    //     println!("Value for config: {}", c);
-    // }
-
-    // // You can see how many times a particular flag or argument occurred
-    // // Note, only flags can have multiple occurrences
-    // match matches.occurrences_of("debug") {
-    //     0 => println!("Debug mode is off"),
-    //     1 => println!("Debug mode is kind of on"),
-    //     2 => println!("Debug mode is on"),
-    //     3 | _ => println!("Don't be crazy"),
-    // }
-
-    // // You can check for the existence of subcommands, and if found use their
-    // // matches just as you would the top level app
-    // if let Some(ref matches) = matches.subcommand_matches("test") {
-    //     // "$ myapp test" was run
-    //     if matches.is_present("list") {
-    //         // "$ myapp test -l" was run
-    //         println!("Printing testing lists...");
-    //     } else {
-    //         println!("Not printing testing lists...");
-    //     }
-    // }
-
-    // Continued program logic goes here...
+                                    // for build in job.builds.iter() {
+                                    //     println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
+                                    // }
 }
 
 
