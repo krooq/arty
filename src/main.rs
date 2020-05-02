@@ -1,4 +1,5 @@
 use jenkins_api::JenkinsBuilder;
+use jenkins_api::client::{TreeBuilder,TreeQueryParam};
 use serde::Deserialize;
 use colored::*;
 use std::env;
@@ -55,8 +56,6 @@ struct Opt {
     /// A regex pattern to filter job URLs
     #[structopt()]
     pattern: Option<String>,
-
-    
 }
 
 fn main() {
@@ -75,22 +74,12 @@ fn main() {
 
     let pipeline_names: Vec<String> = view.jobs.drain(..).map(|j| j.name).collect();
 
-    use jenkins_api::client::TreeBuilder;
-
     for pipeline_name in pipeline_names {
         let path = jenkins_api::client::Path::Job {
             name: pipeline_name.as_str(),
             configuration: None,
         };
-        let tree = TreeBuilder::object("jobs")
-            .with_subfield("name")
-            .with_subfield("url")
-            .with_subfield(
-                TreeBuilder::object("builds")
-                    .with_subfield("url")
-                    .with_subfield("number"),
-            )
-            .build();
+        let tree = query();
         if let Ok(pipeline) = jenkins.get_object_as::<_,Pipeline>(path, tree) {
                 println!("{}", pipeline_name);
                 let no_jobs = pipeline.jobs.len() <= 0;
@@ -114,7 +103,17 @@ fn main() {
                                     //     println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
                                     // }
 }
-
+fn query() -> TreeQueryParam{
+    TreeBuilder::object("jobs")
+            .with_subfield("name")
+            .with_subfield("url")
+            .with_subfield(
+                TreeBuilder::object("builds")
+                    .with_subfield("url")
+                    .with_subfield("number"),
+            )
+            .build()
+}
 
 fn replace_url(url: &str, replacement: &str) -> String {
     let mut url_mut = String::new();
@@ -125,4 +124,4 @@ fn replace_url(url: &str, replacement: &str) -> String {
         }
     }
     url_mut
-}
+} 

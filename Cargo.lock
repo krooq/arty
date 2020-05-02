@@ -570,10 +570,10 @@ checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
 name = "jenkins_api"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb782a0f44db2f68bb5c5b952674ee854f9f6acc9710414417fb873a0b94a852"
+version = "0.6.0"
+source = "git+https://github.com/mockersf/jenkins-api.rs.git?branch=multibranch-pipeline#a9f96c3fb8bbb25bf9f35733b5445fd20a0e1311"
 dependencies = [
+ "failure",
  "log",
  "regex",
  "reqwest",
@@ -581,7 +581,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.6.1",
  "skeptic",
- "thiserror",
  "urlencoding",
 ]
 
@@ -1426,26 +1425,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "unicode-width",
-]
-
-[[package]]
-name = "thiserror"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b3d3d2ff68104100ab257bb6bb0cb26c901abe4bd4ba15961f3bf867924012"
-dependencies = [
- "thiserror-impl",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca972988113b7715266f91250ddb98070d033c62a011fa0fcc57434a649310dd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
