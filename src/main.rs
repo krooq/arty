@@ -6,8 +6,6 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use std::env;
-use std::fs;
-use std::path;
 
 #[derive(Deserialize, Debug)]
 struct Pipeline {
@@ -66,7 +64,7 @@ fn main() {
 
     let jenkins = JenkinsBuilder::new(jenkins_url.clone()).build().unwrap();
 
-    let mut view = jenkins.get_view("Releases").unwrap();
+    let mut view = jenkins.get_view("All").unwrap();
 
     let pipeline_names: Vec<String> = view.jobs.drain(..).map(|j| j.name).collect();
 
