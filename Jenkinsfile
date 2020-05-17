@@ -11,6 +11,11 @@ pipeline {
                 sh "cargo test"
             }
         }
+        stage('Clippy') {
+            steps {
+                sh "cargo +nightly clippy --all"
+            }
+        }
         stage('Rustfmt') {
             steps {
                 // The build will fail if rustfmt thinks any changes are
