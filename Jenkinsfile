@@ -6,6 +6,11 @@ pipeline {
                 sh 'cargo build'
             }
         }
+        post {
+            always {
+                archiveArtifacts artifacts: 'target/**/*.exe'
+            }
+        }
         stage('Test') {
             steps {
                 sh "cargo test"
@@ -24,9 +29,5 @@ pipeline {
             }
         }
     }
-    post {
-        always {
-            archiveArtifacts artifacts: 'target/**/*.exe'
-        }
-    }
+
 }

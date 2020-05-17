@@ -76,7 +76,7 @@ fn main() {
         let tree = query();
         if let Ok(pipeline) = jenkins.get_object_as::<_, Pipeline>(path, tree) {
             println!("{}", pipeline_name);
-            if pipeline.jobs.len() <= 0 {
+            if pipeline.jobs.is_empty() {
                 println!("{:8}", "none".dimmed());
             } else {
                 for (j, job) in pipeline.jobs.iter().enumerate() {
@@ -111,13 +111,13 @@ fn query() -> TreeQueryParam {
         .build()
 }
 
-fn replace_url(url: &str, replacement: &str) -> String {
-    let mut url_mut = String::new();
-    url_mut.push_str(url);
-    if let Some(captures) = URL_REGEX.captures(url_mut.as_str()) {
-        if let Some(m) = captures.get(1) {
-            return url_mut.replace(m.as_str(), replacement);
-        }
-    }
-    url_mut
-}
+// fn replace_url(url: &str, replacement: &str) -> String {
+//     let mut url_mut = String::new();
+//     url_mut.push_str(url);
+//     if let Some(captures) = URL_REGEX.captures(url_mut.as_str()) {
+//         if let Some(m) = captures.get(1) {
+//             return url_mut.replace(m.as_str(), replacement);
+//         }
+//     }
+//     url_mut
+// }
