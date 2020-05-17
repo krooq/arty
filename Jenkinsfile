@@ -1,22 +1,17 @@
-pipeline {
-    agent any
-    stages {
-        stage('Build') {
-            steps {
-                sh """
-                echo "$HOME"
-                bash
-                echo "$HOME"
-                source /mnt/c/Users/Krooq/.bash_profile
-                echo "$HOME"
-                cargo build
-                """
+withEnv(['PATH+CARGO_HOME=/home/krooq/main/tools/rust/cargo/bin']) {
+    pipeline {
+        agent any
+        stages {
+            stage('Build') {
+                steps {
+                    sh 'cargo build'
+                }
             }
         }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'target/*/*.exe'
+        post {
+            always {
+                archiveArtifacts artifacts: 'target/*/*.exe'
+            }
         }
     }
 }
