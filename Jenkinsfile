@@ -4,6 +4,7 @@ pipeline {
         stage('Build') {
             steps {
                 sh """
+                bash
                 source /mnt/c/Users/Krooq/.bash_profile
                 cargo build
                 """
