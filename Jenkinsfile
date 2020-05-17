@@ -3,7 +3,8 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                sh """#!/bin/bash -l
+                sh """
+                source /mnt/c/Users/Krooq/.bash_profile
                 cargo build
                 """
             }
