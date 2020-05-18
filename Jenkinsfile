@@ -6,11 +6,6 @@ pipeline {
                 sh 'cargo build'
             }
         }
-        stage('Test') {
-            steps {
-                sh "cargo test"
-            }
-        }
         stage('Clippy') {
             steps {
                 sh "cargo clippy --all"
@@ -18,9 +13,12 @@ pipeline {
         }
         stage('Rustfmt') {
             steps {
-                // The build will fail if rustfmt thinks any changes are
-                // required.
-                sh "cargo fmt --all -- --write-mode diff"
+                sh "cargo fmt --all -- --check"
+            }
+        }
+        stage('Test') {
+            steps {
+                sh "cargo test"
             }
         }
     }
