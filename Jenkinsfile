@@ -1,9 +1,9 @@
 pipeline {
     agent any
     stages {
-        stage('Build') {
+        stage('Rustfmt') {
             steps {
-                sh 'cargo build'
+                sh "cargo fmt --all -- --check"
             }
         }
         stage('Clippy') {
@@ -11,9 +11,9 @@ pipeline {
                 sh "cargo clippy --all"
             }
         }
-        stage('Rustfmt') {
+        stage('Build') {
             steps {
-                sh "cargo fmt --all -- --check"
+                sh 'cargo build'
             }
         }
         stage('Test') {
