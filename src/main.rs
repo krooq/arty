@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use std::env;
+use std::io;
 
 #[derive(Deserialize, Debug)]
 struct Pipeline {
@@ -19,10 +20,23 @@ struct Job {
 }
 #[derive(Deserialize, Debug)]
 struct Build {
+    artifacts: Vec<Artifact>,
+    building: Option<bool>,
     number: i32,
     url: String,
 }
-
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Artifact {
+    // displayPath: String,
+    file_name: String,
+    relative_path: String,
+}
+// impl Into<&str> for Artifact {
+//     fn into(self) -> &str {
+//         displ
+//     }
+// }
 #[derive(Deserialize, Debug)]
 struct Config {
     url: String,
@@ -46,21 +60,34 @@ use structopt::StructOpt;
 //         .index(1)
 //         .default_value("."),
 // )
-/// Allows you browse jenkins from the command line!
+
+/// Command line browser and artifact downloader for jenkins!
 #[derive(StructOpt, Debug)]
 #[structopt(name = "jenky")]
 struct Opt {
-    /// A regex pattern to filter job URLs
-    #[structopt()]
-    pattern: Option<String>,
+    /// A regex pattern to filter pipelines
+    #[structopt(short, long)]
+    pipeline: Option<String>,
+
+    /// A regex pattern to filter jobs
+    #[structopt(short, long)]
+    job: Option<String>,
+
+    /// A regex pattern to filter builds
+    #[structopt(short, long)]
+    build: Option<String>,
+
+    /// A regex pattern to filter artifacts
+    #[structopt(short, long)]
+    artifact: Option<String>,
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     dotenv().ok();
     let jenkins_url = env::var("JENKINS_URL").expect("JENKINS_URL envionment variable set");
     let jenkins_url = jenkins_url.as_str();
     let opt = Opt::from_args();
-    let job_regex: Option<Regex> = opt.pattern.map(|p| Regex::new(p.as_str()).unwrap());
+    let job_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
 
     let jenkins = JenkinsBuilder::new(jenkins_url.clone()).build().unwrap();
 
@@ -74,6 +101,7 @@ fn main() {
             configuration: None,
         };
         let tree = query();
+        // dbg!(&tree);
         if let Ok(pipeline) = jenkins.get_object_as::<_, Pipeline>(path, tree) {
             println!("{}", pipeline_name);
             if pipeline.jobs.is_empty() {
@@ -91,6 +119,15 @@ fn main() {
             println!();
         };
     }
+
+    println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
+
+    // let mut input = String::new();
+    // println!("You typed: {}", input.trim());
+    // io::stdin().read_line(&mut input)?;
+    // println!("You typed: {}", input.trim());
+    Ok(())
+
     // let job_url = replace_url(job.url.as_str(), jenkins_url);
     // println!("{:4} | {}", "", job_url.replace("%2F", "/"));
     // println!("{:4} | {}", "", job.builds.iter().map(|b| b.number.to_string()).collect::<Vec<String>>().join(", "));
@@ -99,12 +136,19 @@ fn main() {
     //     println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
     // }
 }
+
 fn query() -> TreeQueryParam {
     TreeBuilder::object("jobs")
         .with_subfield("name")
         .with_subfield("url")
         .with_subfield(
             TreeBuilder::object("builds")
+                .with_subfield(
+                    TreeBuilder::object("artifacts")
+                        .with_subfield("fileName")
+                        .with_subfield("relativePath"),
+                )
+                .with_subfield("building")
                 .with_subfield("url")
                 .with_subfield("number"),
         )
