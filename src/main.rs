@@ -84,12 +84,11 @@ struct Opt {
 
 fn main() -> io::Result<()> {
     dotenv().ok();
-    let jenkins_url = env::var("JENKINS_URL").expect("JENKINS_URL envionment variable set");
-    let jenkins_url = jenkins_url.as_str();
+    let url = env::var("JENKINS_URL").expect("JENKINS_URL envionment variable set");
     let opt = Opt::from_args();
     let job_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
 
-    let jenkins = JenkinsBuilder::new(jenkins_url.clone()).build().unwrap();
+    let jenkins = JenkinsBuilder::new(url.as_str()).build().unwrap();
 
     let mut view = jenkins.get_view("All").unwrap();
 
