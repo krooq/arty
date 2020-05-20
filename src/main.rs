@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use colored::*;
 use dotenv::dotenv;
 use jenkins_api::client::{TreeBuilder, TreeQueryParam};
@@ -9,7 +10,13 @@ use std::env;
 use std::io;
 
 #[derive(Deserialize, Debug)]
+struct Home {
+    #[serde(rename(deserialize = "jobs"))]
+    pipelines: Vec<Pipeline>,
+}
+#[derive(Deserialize, Debug)]
 struct Pipeline {
+    name: String,
     jobs: Vec<Job>,
 }
 #[derive(Deserialize, Debug)]
@@ -20,18 +27,18 @@ struct Job {
 }
 #[derive(Deserialize, Debug)]
 struct Build {
-    artifacts: Vec<Artifact>,
-    building: Option<bool>,
+    artifacts: Option<Vec<Artifact>>,
+    building: bool,
     number: i32,
     url: String,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct Artifact {
-    // displayPath: String,
     file_name: String,
     relative_path: String,
 }
+
 // impl Into<&str> for Artifact {
 //     fn into(self) -> &str {
 //         displ
@@ -84,42 +91,46 @@ struct Opt {
 
 fn main() -> io::Result<()> {
     dotenv().ok();
-    let url = env::var("JENKINS_URL").expect("JENKINS_URL envionment variable set");
+    let url = env::var("JENKINS_URL").expect("Get JENKINS_URL envionment variable");
     let opt = Opt::from_args();
+
+    let pipeline_regex: Option<Regex> = opt
+        .job
+        .map(|p| Regex::new(p.as_str()).context("Invalid regex")?);
     let job_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
+    let build_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
+    let artifact_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
 
     let jenkins = JenkinsBuilder::new(url.as_str()).build().unwrap();
 
-    let mut view = jenkins.get_view("All").unwrap();
+    let mut filtered_results = Vec::new();
 
-    let pipeline_names: Vec<String> = view.jobs.drain(..).map(|j| j.name).collect();
+    let tree = metadata_query();
+    let mut home = jenkins
+        .get_object_as::<_, Home>(jenkins_api::client::Path::Home, tree)
+        .expect("Request data from jenkins");
 
-    for pipeline_name in pipeline_names {
-        let path = jenkins_api::client::Path::Job {
-            name: pipeline_name.as_str(),
-            configuration: None,
-        };
-        let tree = query();
-        // dbg!(&tree);
-        if let Ok(pipeline) = jenkins.get_object_as::<_, Pipeline>(path, tree) {
-            println!("{}", pipeline_name);
-            if pipeline.jobs.is_empty() {
-                println!("{:8}", "none".dimmed());
-            } else {
-                for (j, job) in pipeline.jobs.iter().enumerate() {
-                    if job_regex
-                        .as_ref()
-                        .map_or(true, |r| r.captures(job.name.as_str()).is_some())
-                    {
-                        println!("{:4} | {}", j, job.name.replace("%2F", "/"));
-                    }
+    // pipeline_regex
+    //     .as_ref()
+    //     .map_or(true, |r| r.captures(pipeline.name.as_str()).is_some());
+    for pipeline in home.pipelines {
+        println!("{}", pipeline.name);
+        if pipeline.jobs.is_empty() {
+            println!("{:8}", "none".dimmed());
+        } else {
+            for (j, job) in pipeline.jobs.iter().enumerate() {
+                if job_regex
+                    .as_ref()
+                    .map_or(true, |r| r.captures(job.name.as_str()).is_some())
+                {
+                    println!("{:4} | {}", j, job.name.replace("%2F", "/"));
                 }
             }
-            println!();
-        };
+        }
+        println!();
     }
 
-    println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
+    // println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
 
     // let mut input = String::new();
     // println!("You typed: {}", input.trim());
@@ -136,20 +147,25 @@ fn main() -> io::Result<()> {
     // }
 }
 
-fn query() -> TreeQueryParam {
+/// Builds a request for obtaining shallow metadata on the jenkins server.
+fn metadata_query() -> TreeQueryParam {
     TreeBuilder::object("jobs")
-        .with_subfield("name")
-        .with_subfield("url")
-        .with_subfield(
-            TreeBuilder::object("builds")
-                .with_subfield(
-                    TreeBuilder::object("artifacts")
-                        .with_subfield("fileName")
-                        .with_subfield("relativePath"),
-                )
-                .with_subfield("building")
-                .with_subfield("url")
-                .with_subfield("number"),
+        .with_field("name")
+        .with_field(
+            TreeBuilder::object("jobs")
+                .with_field("name")
+                .with_field("url")
+                .with_field(
+                    TreeBuilder::object("builds")
+                        .with_field(
+                            TreeBuilder::object("artifacts")
+                                .with_field("fileName")
+                                .with_field("relativePath"),
+                        )
+                        .with_field("building")
+                        .with_field("url")
+                        .with_field("number"),
+                ),
         )
         .build()
 }
