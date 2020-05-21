@@ -88,47 +88,84 @@ struct Opt {
     #[structopt(short, long)]
     artifact: Option<String>,
 }
+fn match_or_none(regex: &Regex, string: &str) -> bool {
+    regex.captures(string).is_some()
+    // match regex {
+    //     Some(r) => r.captures(string).is_some(),
+    //     None => true,
+    // }
+}
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), anyhow::Error> {
     dotenv().ok();
     let url = env::var("JENKINS_URL").expect("Get JENKINS_URL envionment variable");
     let opt = Opt::from_args();
 
-    let pipeline_regex: Option<Regex> = opt
-        .job
-        .map(|p| Regex::new(p.as_str()).context("Invalid regex")?);
-    let job_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
-    let build_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
-    let artifact_regex: Option<Regex> = opt.job.map(|p| Regex::new(p.as_str()).unwrap());
+    let pipeline_regex: Regex = match opt.pipeline {
+        Some(re) => Regex::new(re.as_str()).context("Invalid regex")?,
+        None => Regex::new(".*").unwrap(),
+    };
+
+    let job_regex: Option<Regex> = opt.job.map(|re| Regex::new(re.as_str()).unwrap());
+    let build_regex: Option<Regex> = opt.build.map(|re| Regex::new(re.as_str()).unwrap());
+    let artifact_regex: Option<Regex> = opt.artifact.map(|re| Regex::new(re.as_str()).unwrap());
 
     let jenkins = JenkinsBuilder::new(url.as_str()).build().unwrap();
 
-    let mut filtered_results = Vec::new();
+    // let mut filtered_results = Vec::new();
 
     let tree = metadata_query();
-    let mut home = jenkins
+    let home = jenkins
         .get_object_as::<_, Home>(jenkins_api::client::Path::Home, tree)
         .expect("Request data from jenkins");
 
-    // pipeline_regex
-    //     .as_ref()
-    //     .map_or(true, |r| r.captures(pipeline.name.as_str()).is_some());
+    let mut filtered_builds: Vec<Build> = Vec::new();
     for pipeline in home.pipelines {
-        println!("{}", pipeline.name);
-        if pipeline.jobs.is_empty() {
-            println!("{:8}", "none".dimmed());
-        } else {
-            for (j, job) in pipeline.jobs.iter().enumerate() {
-                if job_regex
-                    .as_ref()
-                    .map_or(true, |r| r.captures(job.name.as_str()).is_some())
-                {
-                    println!("{:4} | {}", j, job.name.replace("%2F", "/"));
+        if pipeline_regex.is_match(&pipeline.name) {
+            println!("{}", pipeline.name);
+            if pipeline.jobs.is_empty() {
+                println!("\t{}", "none".dimmed());
+            } else {
+                for job in pipeline.jobs {
+                    if job_regex.as_ref().map_or(true, |r| r.is_match(&job.name)) {
+                        println!("\t{}", job.name.replace("%2F", "/"));
+                        if job.builds.is_empty() {
+                            println!("\t\t{}", "none".dimmed());
+                        } else {
+                            for build in job.builds {
+                                if build_regex
+                                    .as_ref()
+                                    .map_or(true, |r| r.is_match(&build.number.to_string()))
+                                {
+                                    println!("\t\t{}", build.number);
+                                    filtered_builds.push(build);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        println!();
     }
+
+    // // pipeline_regex
+    // //     .as_ref()
+    // //     .map_or(true, |r| r.captures(pipeline.name.as_str()).is_some());
+    // for pipeline in home.pipelines {
+    //     if pipeline.jobs.is_empty() {
+    //         println!("{:8}", "none".dimmed());
+    //     } else {
+    //         for (j, job) in pipeline.jobs.iter().enumerate() {
+    //             if job_regex
+    //                 .as_ref()
+    //                 .map_or(true, |r| r.captures(job.name.as_str()).is_some())
+    //             {
+    //                 println!("{:4} | {}", j, job.name.replace("%2F", "/"));
+    //             }
+    //         }
+    //     }
+    //     println!();
+    // }
 
     // println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
 
@@ -157,11 +194,11 @@ fn metadata_query() -> TreeQueryParam {
                 .with_field("url")
                 .with_field(
                     TreeBuilder::object("builds")
-                        .with_field(
-                            TreeBuilder::object("artifacts")
-                                .with_field("fileName")
-                                .with_field("relativePath"),
-                        )
+                        // .with_field(
+                        //     TreeBuilder::object("artifacts")
+                        //         .with_field("fileName")
+                        //         .with_field("relativePath"),
+                        // )
                         .with_field("building")
                         .with_field("url")
                         .with_field("number"),
