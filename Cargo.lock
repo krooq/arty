@@ -440,7 +440,9 @@ checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
 name = "jenkins_api"
-version = "0.7.0"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7de23b552163b940ee545df91e8ae5a7009aaa24d12a7ace14200d37dc12d1ad"
 dependencies = [
  "log",
  "regex",

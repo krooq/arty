@@ -9,7 +9,8 @@ edition = "2018"
 [dependencies]
 structopt = "0.3.14"
 # jenkins_api = {git ="https://github.com/mockersf/jenkins-api.rs.git", branch="multibranch-pipeline"}
-jenkins_api = { path = "../jenkins-api.rs" }
+jenkins_api = "0.8.0"
+# { path = "../jenkins-api.rs" }
 serde = "1.0.110"
 colored = "1.9.3"
 dotenv = "0.15.0"

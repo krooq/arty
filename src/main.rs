@@ -88,27 +88,23 @@ struct Opt {
     #[structopt(short, long)]
     artifact: Option<String>,
 }
-fn match_or_none(regex: &Regex, string: &str) -> bool {
-    regex.captures(string).is_some()
-    // match regex {
-    //     Some(r) => r.captures(string).is_some(),
-    //     None => true,
-    // }
+
+fn unwrap_regex(regex: Option<String>) -> Result<Regex> {
+    match regex {
+        Some(re) => Regex::new(re.as_str()).context("Invalid regex"),
+        None => Regex::new(".*").context("Error in program, contact developer."),
+    }
 }
 
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<()> {
     dotenv().ok();
     let url = env::var("JENKINS_URL").expect("Get JENKINS_URL envionment variable");
     let opt = Opt::from_args();
 
-    let pipeline_regex: Regex = match opt.pipeline {
-        Some(re) => Regex::new(re.as_str()).context("Invalid regex")?,
-        None => Regex::new(".*").unwrap(),
-    };
-
-    let job_regex: Option<Regex> = opt.job.map(|re| Regex::new(re.as_str()).unwrap());
-    let build_regex: Option<Regex> = opt.build.map(|re| Regex::new(re.as_str()).unwrap());
-    let artifact_regex: Option<Regex> = opt.artifact.map(|re| Regex::new(re.as_str()).unwrap());
+    let pipeline_regex: Regex = unwrap_regex(opt.pipeline)?;
+    let job_regex: Regex = unwrap_regex(opt.job)?;
+    let build_regex: Regex = unwrap_regex(opt.build)?;
+    let artifact_regex: Regex = unwrap_regex(opt.artifact)?;
 
     let jenkins = JenkinsBuilder::new(url.as_str()).build().unwrap();
 
@@ -122,22 +118,19 @@ fn main() -> Result<(), anyhow::Error> {
     let mut filtered_builds: Vec<Build> = Vec::new();
     for pipeline in home.pipelines {
         if pipeline_regex.is_match(&pipeline.name) {
-            println!("{}", pipeline.name);
+            print!("{}\t", pipeline.name);
             if pipeline.jobs.is_empty() {
-                println!("\t{}", "none".dimmed());
+                print!("{}", "none".dimmed());
             } else {
                 for job in pipeline.jobs {
-                    if job_regex.as_ref().map_or(true, |r| r.is_match(&job.name)) {
-                        println!("\t{}", job.name.replace("%2F", "/"));
+                    if job_regex.is_match(&job.name) {
+                        print!("{}\t", job.name.replace("%2F", "/"));
                         if job.builds.is_empty() {
-                            println!("\t\t{}", "none".dimmed());
+                            print!("{}", "none".dimmed());
                         } else {
                             for build in job.builds {
-                                if build_regex
-                                    .as_ref()
-                                    .map_or(true, |r| r.is_match(&build.number.to_string()))
-                                {
-                                    println!("\t\t{}", build.number);
+                                if build_regex.is_match(&build.number.to_string()) {
+                                    print!(" {}", build.number);
                                     filtered_builds.push(build);
                                 }
                             }
@@ -146,7 +139,10 @@ fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        print!("\n");
     }
+
+    if filtered_builds.len() == 1 {}
 
     // // pipeline_regex
     // //     .as_ref()
