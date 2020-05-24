@@ -118,19 +118,19 @@ fn main() -> Result<()> {
     let mut filtered_builds: Vec<Build> = Vec::new();
     for pipeline in home.pipelines {
         if pipeline_regex.is_match(&pipeline.name) {
-            print!("{}\t", pipeline.name);
+            println!("{}", pipeline.name);
             if pipeline.jobs.is_empty() {
-                print!("{}", "none".dimmed());
+                println!("\t{}", "none".dimmed());
             } else {
                 for job in pipeline.jobs {
                     if job_regex.is_match(&job.name) {
-                        print!("{}\t", job.name.replace("%2F", "/"));
+                        println!("\t{}", job.name.replace("%2F", "/"));
                         if job.builds.is_empty() {
-                            print!("{}", "none".dimmed());
+                            println!("\t\t{}", "none".dimmed());
                         } else {
                             for build in job.builds {
                                 if build_regex.is_match(&build.number.to_string()) {
-                                    print!(" {}", build.number);
+                                    println!("\t\t{}", build.number);
                                     filtered_builds.push(build);
                                 }
                             }
@@ -139,29 +139,9 @@ fn main() -> Result<()> {
                 }
             }
         }
-        print!("\n");
     }
 
     if filtered_builds.len() == 1 {}
-
-    // // pipeline_regex
-    // //     .as_ref()
-    // //     .map_or(true, |r| r.captures(pipeline.name.as_str()).is_some());
-    // for pipeline in home.pipelines {
-    //     if pipeline.jobs.is_empty() {
-    //         println!("{:8}", "none".dimmed());
-    //     } else {
-    //         for (j, job) in pipeline.jobs.iter().enumerate() {
-    //             if job_regex
-    //                 .as_ref()
-    //                 .map_or(true, |r| r.captures(job.name.as_str()).is_some())
-    //             {
-    //                 println!("{:4} | {}", j, job.name.replace("%2F", "/"));
-    //             }
-    //         }
-    //     }
-    //     println!();
-    // }
 
     // println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
 
