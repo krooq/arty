@@ -4,11 +4,14 @@ use dotenv::dotenv;
 use jenkins_api::client::{TreeBuilder, TreeQueryParam};
 use jenkins_api::JenkinsBuilder;
 use lazy_static::lazy_static;
+use prettytable::{Cell, Row, Table};
 use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::io;
 
+#[macro_use]
+extern crate prettytable;
 #[derive(Deserialize, Debug)]
 struct Home {
     #[serde(rename(deserialize = "jobs"))]
@@ -38,7 +41,11 @@ struct Artifact {
     file_name: String,
     relative_path: String,
 }
-
+struct SearchResult {
+    pipeline_name: String,
+    job_name: String,
+    build: Build,
+}
 // impl Into<&str> for Artifact {
 //     fn into(self) -> &str {
 //         displ
@@ -115,25 +122,18 @@ fn main() -> Result<()> {
         .get_object_as::<_, Home>(jenkins_api::client::Path::Home, tree)
         .expect("Request data from jenkins");
 
-    let mut filtered_builds: Vec<Build> = Vec::new();
+    let mut search_results: Vec<SearchResult> = Vec::new();
     for pipeline in home.pipelines {
         if pipeline_regex.is_match(&pipeline.name) {
-            println!("{}", pipeline.name);
-            if pipeline.jobs.is_empty() {
-                println!("\t{}", "none".dimmed());
-            } else {
-                for job in pipeline.jobs {
-                    if job_regex.is_match(&job.name) {
-                        println!("\t{}", job.name.replace("%2F", "/"));
-                        if job.builds.is_empty() {
-                            println!("\t\t{}", "none".dimmed());
-                        } else {
-                            for build in job.builds {
-                                if build_regex.is_match(&build.number.to_string()) {
-                                    println!("\t\t{}", build.number);
-                                    filtered_builds.push(build);
-                                }
-                            }
+            for job in pipeline.jobs {
+                if job_regex.is_match(&job.name) {
+                    for build in job.builds {
+                        if build_regex.is_match(&build.number.to_string()) {
+                            search_results.push(SearchResult {
+                                pipeline_name: pipeline.name.clone(),
+                                job_name: job.name.clone(),
+                                build: build,
+                            });
                         }
                     }
                 }
@@ -141,7 +141,34 @@ fn main() -> Result<()> {
         }
     }
 
-    if filtered_builds.len() == 1 {}
+    let mut table = Table::new();
+    table.add_row(row![c=>"pipeline", "job", "build"]);
+    for result in search_results {
+        table.add_row(row![
+            result.pipeline_name,
+            result.job_name,
+            result.build.number
+        ]);
+    }
+
+    table.printstd();
+
+    // let pipeline_column_fmt = column_format(search_results.into_iter().map(|r| r.pipeline_name));
+    // let job_column_fmt = column_format(search_results.into_iter().map(|r| r.job_name));
+    // let build_column_fmt = column_format(
+    //     search_results
+    //         .into_iter()
+    //         .map(|r| r.build.number.to_string()),
+    // );
+    // let table_fmt = vec![pipeline_column_fmt, job_column_fmt, build_column_fmt].join(" | ");
+
+    // for result in search_results {
+    //     println!(
+    //         &table_fmt,
+    //         result.pipeline_name, result.job_name, result.build.number
+    //     );
+    // }
+    // if search_results.len() == 1 {}
 
     // println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
 
@@ -159,6 +186,18 @@ fn main() -> Result<()> {
     //     println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
     // }
 }
+
+// fn column_format<I: IntoIterator<Item = String>>(values: I) -> String {
+//     let pipeline_column_width = values
+//         .into_iter()
+//         .map(|v| v.chars().count())
+//         .max()
+//         .unwrap_or(0);
+//     let fmt = String::from("{%");
+//     fmt.push_str(&pipeline_column_width.to_string());
+//     fmt.push_str("s}");
+//     fmt
+// }
 
 /// Builds a request for obtaining shallow metadata on the jenkins server.
 fn metadata_query() -> TreeQueryParam {
