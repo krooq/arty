@@ -561,9 +561,9 @@ dependencies = [
  "colored",
  "dotenv",
  "jenkins_api",
- "lazy_static",
  "prettytable-rs",
  "regex",
+ "reqwest",
  "serde",
  "structopt",
 ]

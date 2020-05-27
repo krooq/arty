@@ -1,16 +1,13 @@
 use anyhow::{Context, Result};
-use colored::*;
 use dotenv::dotenv;
-use jenkins_api::build::{Artifact, BuildNumber};
+use jenkins_api::build::Artifact;
 use jenkins_api::client::{TreeBuilder, TreeQueryParam};
-use jenkins_api::job::JobName;
 use jenkins_api::JenkinsBuilder;
-use lazy_static::lazy_static;
-use prettytable::{Cell, Row, Table};
+use prettytable::{Cell, Table};
 use regex::Regex;
+use reqwest;
 use serde::Deserialize;
 use std::env;
-use std::io;
 
 #[macro_use]
 extern crate prettytable;
@@ -45,10 +42,7 @@ struct SearchResult {
 #[derive(Deserialize, Debug)]
 struct Config {
     url: String,
-}
-
-lazy_static! {
-    static ref URL_REGEX: Regex = Regex::new(r"(\w+://([^/]+))/.+").unwrap();
+    download_dir: Option<String>,
 }
 
 use structopt::StructOpt;
@@ -96,8 +90,13 @@ fn unwrap_as_regex(regex: &Option<String>) -> Result<Regex> {
 }
 
 fn main() -> Result<()> {
-    dotenv().ok();
-    let url = env::var("JENKINS_URL").expect("Get JENKINS_URL envionment variable");
+    dotenv().context("Error in .env config file")?;
+    let url = env::var("JENKY_URL").context("JENKY_URL envionment variable not set")?;
+    let download_dir = env::var("JENKY_DOWNLOAD_DIR").ok().map_or_else(
+        || std::env::current_dir().unwrap(),
+        |dir| std::path::PathBuf::from(dir),
+    );
+
     let opt = Opt::from_args();
 
     let pipeline_regex: Regex = unwrap_as_regex(&opt.pipeline)?;
@@ -107,11 +106,8 @@ fn main() -> Result<()> {
 
     let jenkins = JenkinsBuilder::new(url.as_str()).build().unwrap();
 
-    // let mut filtered_results = Vec::new();
-
-    let tree = metadata_query();
     let home = jenkins
-        .get_object_as::<_, Home>(jenkins_api::client::Path::Home, tree)
+        .get_object_as::<_, Home>(jenkins_api::client::Path::Home, metadata_query())
         .expect("Request data from jenkins");
 
     let mut search_results: Vec<SearchResult> = Vec::new();
@@ -133,74 +129,85 @@ fn main() -> Result<()> {
         }
     }
 
-    let mut artifacts: Vec<Artifact> = Vec::new();
+    let ref mut artifacts: Vec<Artifact> = Vec::new();
+    let mut artifact_path = String::from("");
     if opt.artifact.is_some() {
-        if search_results.len() as u32 == 1 {
-            let result = search_results.first().unwrap();
-            let mut job_name = result.pipeline_name.clone();
-            job_name.push_str("/job/");
-            job_name.push_str(&result.job_name);
-            let build = jenkins
-                .get_build(
-                    JobName::from(&job_name),
-                    BuildNumber::Number(result.build_number),
-                )
-                .expect("Artifact data from jenkins");
-            for artifact in build.artifacts {
-                if artifact_regex.is_match(&artifact.file_name) {
-                    artifacts.push(artifact);
+        if !search_results.is_empty() {
+            if search_results.len() as u32 == 1 {
+                let result = search_results.first().unwrap();
+                artifact_path.push_str("/job/");
+                artifact_path.push_str(&result.pipeline_name.clone());
+                artifact_path.push_str("/job/");
+                artifact_path.push_str(&result.job_name);
+                artifact_path.push_str("/");
+                artifact_path.push_str(&result.build_number.to_string());
+                // artifact_path.push_str("/api/json");
+                let build: jenkins_api::build::CommonBuild = jenkins
+                    .get_object_as(
+                        jenkins_api::client::Path::Raw {
+                            path: &artifact_path,
+                        },
+                        None,
+                    )
+                    .expect("Artifact data from jenkins");
+                for artifact in build.artifacts {
+                    if artifact_regex.is_match(&artifact.file_name) {
+                        artifacts.push(artifact);
+                    }
                 }
+            } else {
+                println!("Mutiple builds found, artifacts can only be retrieved for exactly one build at a time, try refining your filters");
             }
         } else {
-            println!("Mutiple builds found, artifacts can only be retrieved for one build at a time, refine filters to query build artifacts");
+            println!("No builds found, artifacts can only be retrieved for exactly one build at a time, try expanding your filters");
         }
     }
 
     let mut table = Table::new();
-    table.add_row(row![c=>"pipeline", "job", "build"]);
+    let mut header_row = row![c=>"pipeline", "job", "build"];
+    if !artifacts.is_empty() {
+        let mut artifacts_header = Cell::new("artifacts");
+        artifacts_header.align(prettytable::format::Alignment::CENTER);
+        header_row.add_cell(artifacts_header);
+    }
+    table.add_row(header_row);
     for result in search_results {
-        table.add_row(row![
-            result.pipeline_name,
-            result.job_name,
-            result.build_number
-        ]);
+        let mut content_row = row![result.pipeline_name, result.job_name, result.build_number];
+        if !artifacts.is_empty() {
+            content_row.add_cell(Cell::new(
+                &artifacts
+                    .into_iter()
+                    .map(|a| a.relative_path.clone())
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+            ));
+        }
+        table.add_row(content_row);
     }
     table.printstd();
 
-    if !artifacts.is_empty() {
-        println!("Artifacts: ");
-        for artifact in artifacts {
-            println!("{}", artifact.file_name);
+    if opt.artifact.is_some() {
+        if !artifacts.is_empty() {
+            if artifacts.len() as u32 == 1 {
+                let artifact = artifacts.first().unwrap();
+                let mut artifact_url = String::from("");
+                artifact_url.push_str(&url);
+                artifact_url.push_str(&artifact_path);
+                artifact_url.push_str("/artifact/");
+                artifact_url.push_str(&artifact.relative_path);
+
+                let mut resp = reqwest::blocking::get(&artifact_url)?;
+                let mut file_dir = download_dir;
+                file_dir.push(std::path::Path::new(&artifact.file_name));
+                let mut out = std::fs::File::create(&file_dir)?;
+                std::io::copy(&mut resp, &mut out)?;
+            }
+        } else {
+            println!("No artifacts found");
         }
     }
-    // println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
-
-    // let mut input = String::new();
-    // println!("You typed: {}", input.trim());
-    // io::stdin().read_line(&mut input)?;
-    // println!("You typed: {}", input.trim());
     Ok(())
-
-    // let job_url = replace_url(job.url.as_str(), jenkins_url);
-    // println!("{:4} | {}", "", job_url.replace("%2F", "/"));
-    // println!("{:4} | {}", "", job.builds.iter().map(|b| b.number.to_string()).collect::<Vec<String>>().join(", "));
-
-    // for build in job.builds.iter() {
-    //     println!("{:4} | {}", build.number, replace_url(build.url.as_str(), jenkins_url));
-    // }
 }
-
-// fn column_format<I: IntoIterator<Item = String>>(values: I) -> String {
-//     let pipeline_column_width = values
-//         .into_iter()
-//         .map(|v| v.chars().count())
-//         .max()
-//         .unwrap_or(0);
-//     let fmt = String::from("{%");
-//     fmt.push_str(&pipeline_column_width.to_string());
-//     fmt.push_str("s}");
-//     fmt
-// }
 
 /// Builds a request for obtaining shallow metadata on the jenkins server.
 fn metadata_query() -> TreeQueryParam {
@@ -212,11 +219,6 @@ fn metadata_query() -> TreeQueryParam {
                 .with_field("url")
                 .with_field(
                     TreeBuilder::object("builds")
-                        // .with_field(
-                        //     TreeBuilder::object("artifacts")
-                        //         .with_field("fileName")
-                        //         .with_field("relativePath"),
-                        // )
                         .with_field("building")
                         .with_field("url")
                         .with_field("number"),
@@ -224,14 +226,3 @@ fn metadata_query() -> TreeQueryParam {
         )
         .build()
 }
-
-// fn replace_url(url: &str, replacement: &str) -> String {
-//     let mut url_mut = String::new();
-//     url_mut.push_str(url);
-//     if let Some(captures) = URL_REGEX.captures(url_mut.as_str()) {
-//         if let Some(m) = captures.get(1) {
-//             return url_mut.replace(m.as_str(), replacement);
-//         }
-//     }
-//     url_mut
-// }
