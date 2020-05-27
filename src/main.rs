@@ -47,19 +47,6 @@ struct Config {
 
 use structopt::StructOpt;
 
-// .arg(
-//     Arg::with_name("extract")
-//         .short('x')
-//         .long("extract")
-//         .help("Extracts the artifacts after downloading"),
-// )
-// .arg(
-//     Arg::index("dir")
-//         .help("Sets the download directory")
-//         .index(1)
-//         .default_value("."),
-// )
-
 /// Command line browser and artifact downloader for jenkins!
 #[derive(StructOpt, Debug)]
 #[structopt(name = "jenky")]
@@ -141,7 +128,6 @@ fn main() -> Result<()> {
                 artifact_path.push_str(&result.job_name);
                 artifact_path.push_str("/");
                 artifact_path.push_str(&result.build_number.to_string());
-                // artifact_path.push_str("/api/json");
                 let build: jenkins_api::build::CommonBuild = jenkins
                     .get_object_as(
                         jenkins_api::client::Path::Raw {
