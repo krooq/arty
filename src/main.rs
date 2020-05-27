@@ -19,7 +19,7 @@ struct Home {
 #[derive(Deserialize, Debug)]
 struct Pipeline {
     name: String,
-    jobs: Vec<Job>,
+    jobs: Option<Vec<Job>>,
 }
 #[derive(Deserialize, Debug)]
 struct Job {
@@ -100,15 +100,17 @@ fn main() -> Result<()> {
     let mut search_results: Vec<SearchResult> = Vec::new();
     for pipeline in home.pipelines {
         if pipeline_regex.is_match(&pipeline.name) {
-            for job in pipeline.jobs {
-                if job_regex.is_match(&job.name) {
-                    for build in job.builds {
-                        if build_regex.is_match(&build.number.to_string()) {
-                            search_results.push(SearchResult {
-                                pipeline_name: pipeline.name.clone(),
-                                job_name: job.name.clone(),
-                                build_number: build.number,
-                            });
+            if let Some(jobs) = pipeline.jobs {
+                for job in jobs {
+                    if job_regex.is_match(&job.name) {
+                        for build in job.builds {
+                            if build_regex.is_match(&build.number.to_string()) {
+                                search_results.push(SearchResult {
+                                    pipeline_name: pipeline.name.clone(),
+                                    job_name: job.name.clone(),
+                                    build_number: build.number,
+                                });
+                            }
                         }
                     }
                 }
@@ -157,7 +159,7 @@ fn main() -> Result<()> {
         header_row.add_cell(artifacts_header);
     }
     table.add_row(header_row);
-    for result in search_results {
+    for result in &search_results {
         let mut content_row = row![result.pipeline_name, result.job_name, result.build_number];
         if !artifacts.is_empty() {
             content_row.add_cell(Cell::new(
@@ -173,23 +175,25 @@ fn main() -> Result<()> {
     table.printstd();
 
     if opt.artifact.is_some() {
-        if !artifacts.is_empty() {
-            if artifacts.len() as u32 == 1 {
-                let artifact = artifacts.first().unwrap();
-                let mut artifact_url = String::from("");
-                artifact_url.push_str(&url);
-                artifact_url.push_str(&artifact_path);
-                artifact_url.push_str("/artifact/");
-                artifact_url.push_str(&artifact.relative_path);
+        if search_results.len() as u32 == 1 {
+            if !artifacts.is_empty() {
+                if artifacts.len() as u32 == 1 {
+                    let artifact = artifacts.first().unwrap();
+                    let mut artifact_url = String::from("");
+                    artifact_url.push_str(&url);
+                    artifact_url.push_str(&artifact_path);
+                    artifact_url.push_str("/artifact/");
+                    artifact_url.push_str(&artifact.relative_path);
 
-                let mut resp = reqwest::blocking::get(&artifact_url)?;
-                let mut file_dir = download_dir;
-                file_dir.push(std::path::Path::new(&artifact.file_name));
-                let mut out = std::fs::File::create(&file_dir)?;
-                std::io::copy(&mut resp, &mut out)?;
+                    let mut resp = reqwest::blocking::get(&artifact_url)?;
+                    let mut file_dir = download_dir;
+                    file_dir.push(std::path::Path::new(&artifact.file_name));
+                    let mut out = std::fs::File::create(&file_dir)?;
+                    std::io::copy(&mut resp, &mut out)?;
+                }
+            } else {
+                println!("No artifacts found");
             }
-        } else {
-            println!("No artifacts found");
         }
     }
     Ok(())
