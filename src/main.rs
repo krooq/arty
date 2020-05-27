@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use colored::*;
 use dotenv::dotenv;
+use jenkins_api::build::{Artifact, BuildNumber};
 use jenkins_api::client::{TreeBuilder, TreeQueryParam};
+use jenkins_api::job::JobName;
 use jenkins_api::JenkinsBuilder;
 use lazy_static::lazy_static;
 use prettytable::{Cell, Row, Table};
@@ -30,27 +32,16 @@ struct Job {
 }
 #[derive(Deserialize, Debug)]
 struct Build {
-    artifacts: Option<Vec<Artifact>>,
     building: bool,
-    number: i32,
+    number: u32,
     url: String,
 }
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Artifact {
-    file_name: String,
-    relative_path: String,
-}
+
 struct SearchResult {
     pipeline_name: String,
     job_name: String,
-    build: Build,
+    build_number: u32,
 }
-// impl Into<&str> for Artifact {
-//     fn into(self) -> &str {
-//         displ
-//     }
-// }
 #[derive(Deserialize, Debug)]
 struct Config {
     url: String,
@@ -91,12 +82,13 @@ struct Opt {
     #[structopt(short, long)]
     build: Option<String>,
 
-    /// A regex pattern to filter artifacts
+    /// A regex pattern to filter build artifacts
+    /// For performance, artifacts can only be retrieved for one build at a time
     #[structopt(short, long)]
     artifact: Option<String>,
 }
 
-fn unwrap_regex(regex: Option<String>) -> Result<Regex> {
+fn unwrap_as_regex(regex: &Option<String>) -> Result<Regex> {
     match regex {
         Some(re) => Regex::new(re.as_str()).context("Invalid regex"),
         None => Regex::new(".*").context("Error in program, contact developer."),
@@ -108,10 +100,10 @@ fn main() -> Result<()> {
     let url = env::var("JENKINS_URL").expect("Get JENKINS_URL envionment variable");
     let opt = Opt::from_args();
 
-    let pipeline_regex: Regex = unwrap_regex(opt.pipeline)?;
-    let job_regex: Regex = unwrap_regex(opt.job)?;
-    let build_regex: Regex = unwrap_regex(opt.build)?;
-    let artifact_regex: Regex = unwrap_regex(opt.artifact)?;
+    let pipeline_regex: Regex = unwrap_as_regex(&opt.pipeline)?;
+    let job_regex: Regex = unwrap_as_regex(&opt.job)?;
+    let build_regex: Regex = unwrap_as_regex(&opt.build)?;
+    let artifact_regex: Regex = unwrap_as_regex(&opt.artifact)?;
 
     let jenkins = JenkinsBuilder::new(url.as_str()).build().unwrap();
 
@@ -132,12 +124,35 @@ fn main() -> Result<()> {
                             search_results.push(SearchResult {
                                 pipeline_name: pipeline.name.clone(),
                                 job_name: job.name.clone(),
-                                build: build,
+                                build_number: build.number,
                             });
                         }
                     }
                 }
             }
+        }
+    }
+
+    let mut artifacts: Vec<Artifact> = Vec::new();
+    if opt.artifact.is_some() {
+        if search_results.len() as u32 == 1 {
+            let result = search_results.first().unwrap();
+            let mut job_name = result.pipeline_name.clone();
+            job_name.push_str("/job/");
+            job_name.push_str(&result.job_name);
+            let build = jenkins
+                .get_build(
+                    JobName::from(&job_name),
+                    BuildNumber::Number(result.build_number),
+                )
+                .expect("Artifact data from jenkins");
+            for artifact in build.artifacts {
+                if artifact_regex.is_match(&artifact.file_name) {
+                    artifacts.push(artifact);
+                }
+            }
+        } else {
+            println!("Mutiple builds found, artifacts can only be retrieved for one build at a time, refine filters to query build artifacts");
         }
     }
 
@@ -147,29 +162,17 @@ fn main() -> Result<()> {
         table.add_row(row![
             result.pipeline_name,
             result.job_name,
-            result.build.number
+            result.build_number
         ]);
     }
-
     table.printstd();
 
-    // let pipeline_column_fmt = column_format(search_results.into_iter().map(|r| r.pipeline_name));
-    // let job_column_fmt = column_format(search_results.into_iter().map(|r| r.job_name));
-    // let build_column_fmt = column_format(
-    //     search_results
-    //         .into_iter()
-    //         .map(|r| r.build.number.to_string()),
-    // );
-    // let table_fmt = vec![pipeline_column_fmt, job_column_fmt, build_column_fmt].join(" | ");
-
-    // for result in search_results {
-    //     println!(
-    //         &table_fmt,
-    //         result.pipeline_name, result.job_name, result.build.number
-    //     );
-    // }
-    // if search_results.len() == 1 {}
-
+    if !artifacts.is_empty() {
+        println!("Artifacts: ");
+        for artifact in artifacts {
+            println!("{}", artifact.file_name);
+        }
+    }
     // println!("http://your.jenkins.server/job/your.job/lastStableBuild/artifact/relativePath");
 
     // let mut input = String::new();
