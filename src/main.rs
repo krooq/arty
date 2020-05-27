@@ -117,7 +117,23 @@ fn main() -> Result<()> {
             }
         }
     }
-
+    search_results.sort_by(|a, b| {
+        match a
+            .pipeline_name
+            .to_lowercase()
+            .cmp(&b.pipeline_name.to_lowercase())
+        {
+            std::cmp::Ordering::Equal => {
+                match a.job_name.to_lowercase().cmp(&b.job_name.to_lowercase()) {
+                    std::cmp::Ordering::Equal => b.build_number.cmp(&a.build_number),
+                    std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+                    std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+                }
+            }
+            std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+            std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+        }
+    });
     let ref mut artifacts: Vec<Artifact> = Vec::new();
     let mut artifact_path = String::from("");
     if opt.artifact.is_some() {
