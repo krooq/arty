@@ -193,19 +193,22 @@ fn main() -> Result<()> {
     if opt.artifact.is_some() {
         if search_results.len() as u32 == 1 {
             if !artifacts.is_empty() {
-                if artifacts.len() as u32 == 1 {
-                    let artifact = artifacts.first().unwrap();
-                    let mut artifact_url = String::from("");
-                    artifact_url.push_str(&url);
-                    artifact_url.push_str(&artifact_path);
-                    artifact_url.push_str("/artifact/");
-                    artifact_url.push_str(&artifact.relative_path);
+                if yn("download all?") {
+                    println!("downloading!");
+                    for artifact in artifacts {
+                        // let artifact = a.unwrap();
+                        let mut artifact_url = String::from("");
+                        artifact_url.push_str(&url);
+                        artifact_url.push_str(&artifact_path);
+                        artifact_url.push_str("/artifact/");
+                        artifact_url.push_str(&artifact.relative_path);
 
-                    let mut resp = reqwest::blocking::get(&artifact_url)?;
-                    let mut file_dir = download_dir;
-                    file_dir.push(std::path::Path::new(&artifact.file_name));
-                    let mut out = std::fs::File::create(&file_dir)?;
-                    std::io::copy(&mut resp, &mut out)?;
+                        let mut resp = reqwest::blocking::get(&artifact_url)?;
+                        let mut file_dir = download_dir.clone();
+                        file_dir.push(std::path::Path::new(&artifact.file_name));
+                        let mut out = std::fs::File::create(&file_dir)?;
+                        std::io::copy(&mut resp, &mut out)?;
+                    }
                 }
             } else {
                 println!("No artifacts found");
@@ -213,6 +216,21 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+fn yn(yes_no_question:&str) -> bool {
+    use std::io::{stdin,stdout,Write};
+    let mut s=String::new();
+    print!("{}", yes_no_question);
+    print!(": ");
+    let _=stdout().flush();
+    stdin().read_line(&mut s).expect("Did not enter a correct string");
+    if let Some('\n')=s.chars().next_back() {
+        s.pop();
+    }
+    if let Some('\r')=s.chars().next_back() {
+        s.pop();
+    }
+    s == "y"
 }
 
 /// Builds a request for obtaining shallow metadata on the jenkins server.
