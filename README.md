@@ -42,7 +42,7 @@ the search has been filtered to a single build.
 
 # Installing
 - Install Rust: https://rustup.rs/
-- Run `$ cargo install`
+- Run `$ cargo install arty`
 - Make sure your cargo bin directory is on the PATH
 
 # Building from source
