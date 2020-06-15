@@ -1,15 +1,15 @@
-## arty
-Command line based browser and artifact downloader for jenkins!
+# Arty
 ```
+Command line based browser and artifact downloader for jenkins!
+
 SUBCOMMANDS:
     get     Download artifacts from jenkins
     help    Prints this message or the help of the given subcommand(s)
 ```
-
-### get
+## get
+```
 Download artifacts from jenkins
 
-```
 USAGE:
     arty.exe get [OPTIONS] [JOB]
 
@@ -39,3 +39,18 @@ ARGS:
 
 NOTE: Querying every artifact of every build would take forever! To work around this, artifacts are only queried once
 the search has been filtered to a single build.
+
+# Installing
+- TBD
+
+# Building from source
+- Install Rust: https://rustup.rs/
+- Run either of the following in the project root:
+    - `$ cargo run` to quickly run in debug mode
+    - `$ cargo build --release` to assemble an executable in `target/release`
+
+# Limitations
+- No support for user credentials (yet)
+- No tests
+- Might fail with an ugly error message
+- Developed for and only "tested" with multi-pipeline branches
