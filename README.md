@@ -41,7 +41,9 @@ NOTE: Querying every artifact of every build would take forever! To work around 
 the search has been filtered to a single build.
 
 # Installing
-- TBD
+- Install Rust: https://rustup.rs/
+- Run `$ cargo install`
+- Make sure your cargo bin directory is on the PATH
 
 # Building from source
 - Install Rust: https://rustup.rs/
