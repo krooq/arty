@@ -1,5 +1,5 @@
 [package]
-name = "jenky"
+name = "arty"
 version = "0.1.0"
 authors = ["Gavin Rossiter <rossiter.gavin@gmail.com>"]
 edition = "2018"
@@ -8,9 +8,7 @@ edition = "2018"
 
 [dependencies]
 structopt = "0.3.14"
-# jenkins_api = {git ="https://github.com/mockersf/jenkins-api.rs.git", branch="multibranch-pipeline"}
 jenkins_api = "0.8.0"
-# { path = "../jenkins-api.rs" }
 serde = "1.0.110"
 colored = "1.9.3"
 dotenv = "0.15.0"
