@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use dotenv::dotenv;
 use jenkins_api::build::Artifact;
 use jenkins_api::client::{TreeBuilder, TreeQueryParam};
 use jenkins_api::JenkinsBuilder;
@@ -99,8 +98,6 @@ fn unwrap_as_regex(regex: &Option<String>) -> Result<Regex> {
 }
 
 fn main() -> Result<()> {
-    dotenv().context("Error in .env config file")?;
-
     match Subcommand::from_args() {
         Subcommand::Get(opt) => {
             let url = &opt.url;

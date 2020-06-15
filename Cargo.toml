@@ -1,22 +1,19 @@
 [package]
 name = "arty"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Gavin Rossiter <rossiter.gavin@gmail.com>"]
 edition = "2018"
 description = "Command line based browser and artifact downloader for jenkins!"
-repository = "https://github.com/krooq/arty"
-license = "MIT OR Apache-2.0"
-keywords = ["jenkins","artifact"]
+keywords = ["jenkins", "artifact", "cli"]
 categories = ["command-line-utilities"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/krooq/arty"
+readme = "README.md"
 
 [dependencies]
 structopt = "0.3.14"
 jenkins_api = "0.8.0"
 serde = "1.0.110"
-colored = "1.9.3"
-dotenv = "0.15.0"
 regex = "1.3.7"
 anyhow = "1.0.31"
 prettytable-rs = "^0.8"
