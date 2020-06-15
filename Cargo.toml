@@ -3,6 +3,11 @@ name = "arty"
 version = "0.1.0"
 authors = ["Gavin Rossiter <rossiter.gavin@gmail.com>"]
 edition = "2018"
+description = "Command line based browser and artifact downloader for jenkins!"
+repository = "https://github.com/krooq/arty"
+license = "MIT OR Apache-2.0"
+keywords = ["jenkins","artifact"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
