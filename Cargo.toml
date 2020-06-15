@@ -1,6 +1,6 @@
 [package]
 name = "arty"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Gavin Rossiter <rossiter.gavin@gmail.com>"]
 edition = "2018"
 description = "Command line based browser and artifact downloader for jenkins!"
